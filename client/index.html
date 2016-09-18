@@ -1,0 +1,257 @@
+<!DOCTYPE HTML> 
+<html ng-app="myApp"> 
+<head> 
+	<title>Organize</title> 
+	<link rel='stylesheet' type='text/css' href='./static/style.css'> 
+	<script type="text/javascript" src="./angular.min.js"></script> 
+	<script type="text/javascript" src="./angular-route-1_5_5.js"></script> 
+	<script> 
+	var myApp = angular.module("myApp", ['ngRoute']); 
+ 
+	myApp.config(function($routeProvider){ 
+		$routeProvider 
+		.when('/', { 
+			templateUrl: './partials/login.html' 
+		}) 
+		.when('/bids', { 
+			templateUrl: './partials/bids.html' 
+		}) 
+		.when('/result', { 
+			templateUrl: './partials/result.html' 
+		}) 
+		.otherwise({ 
+			redirectTo: '/bids' 
+		}); 
+	}); 
+	myApp.factory("userFactory", ['$http', function($http){	 
+		var factory = {}; 
+		factory.current_user = ""; 
+		factory.create = function(new_user, callback){ 
+			$http.post('/users/create', {name: new_user.name}).success(function(result){ 
+				if (result.error){ 
+					callback(result); 
+				} else { 
+					factory.current_user = result.current_user; 
+					callback(result.current_user); 
+				} 
+			}) 
+		} 
+		factory.verify = function(callback){ 
+			if (factory.current_user === ""){ 
+				callback({login_status: false}); 
+			} else { 
+				var verify_path = "/users/" + factory.current_user + "/verify"; 
+				$http.get(verify_path).success(function(result){ 
+					callback(result); 
+				}) 
+			} 
+		} 
+		factory.delete = function(id, callback){ 
+			delete_path = "/users/" + id + "/delete"; 
+			$http.post(delete_path).success(function(result){ 
+			if (result.logged_out){ 
+				factory.current_user = ""; 
+			} 
+				callback(result); 
+			}) 
+		} 
+		return factory; 
+	}]); 
+	myApp.factory("bidFactory", ['$http', 'userFactory', function($http, userFactory){ 
+		var factory = {}; 
+		factory.index = function(callback){ 
+			$http.get('/bids').success(function(data){
+				if (data.bid_list){
+					var products = [
+						{name: "Mel", profession: "Samurai", bids: []}, 
+						{name: "Pat", profession: "Wizard", bids: []}, 
+						{name: "Sam", profession: "Ninja", bids: []}];
+					for (i=0; i<data.bid_list.length; i++){ 
+						for (x=0; x<products.length; x++){
+							if (data.bid_list[i]._product === products[x].name){
+								products[x].bids.push({user: data.bid_list[i]._user, amount: data.bid_list[i].amount});
+							}
+						}
+					}
+					callback({product_list: products, ended: data.ended}); 
+				} else {
+					callback(data);
+				}
+			}) 
+		} 
+		factory.create = function(new_bid, callback){ 
+			new_bid.user = userFactory.current_user;
+			$http.post('/bids/create', new_bid).success(function(result){ 
+				if (result.error){ 
+					callback({error: result.error}); 
+				} else { 
+					callback({result: "ok"}); 
+				} 
+			}) 
+		} 
+		factory.end_bid = function(callback){
+			factory.index(function(data){
+				if (data.error){
+					callback({error: "Error retrieving final results: " + data.error});
+				} else if (data.product_list){	
+					var results = {};
+					var valid = true;
+					for (i=0; i<data.product_list.length; i++){
+						results[data.product_list[i].name] = {};
+						var high_bid = 0;
+						var high_bidder = "";
+						for (x=0; x<data.product_list[i].bids.length; x++){
+							if (data.product_list[i].bids[x].amount > high_bid){
+								high_bid = data.product_list[i].bids[x].amount;
+								high_bidder = data.product_list[i].bids[x].user;
+							}
+						}
+						if (high_bid === 0){
+							valid = false;
+							callback({invalid: true});
+						} else {
+							results[data.product_list[i].name].amount = high_bid;
+							results[data.product_list[i].name].user = high_bidder;
+						}
+					}
+					if (valid === true){
+						$http.post('/bids/end', {ended: userFactory.current_user}).success(function(end_result){
+							callback({results: results});
+						})
+					}
+				}
+			})
+		}
+		factory.delete = function(callback){ 
+			$http.post('/bids/delete', {bid_ender: userFactory.current_user}).success(function(result){
+				if (result.error){
+					callback({error: "Error deleting bids: " + result.error});
+				} else {
+					callback({result: "ok"});
+				}
+			})
+		} 
+		return factory; 
+	}]); 
+	myApp.controller('usersController', ['$scope', '$interval', '$location', 'userFactory', function($scope, $interval, $location, userFactory){ 
+		userFactory.verify(function(result){ 
+			if (result.login_status != false){ 
+				$location.url('/bids'); 
+			} 
+		}) 
+		$scope.new_user = {}; 
+		$scope.create = function(new_user){ 
+			userFactory.create(new_user, function(data){ 
+				if (data.error){ 
+					$scope.error = data.error; 
+				} else { 
+					$scope.error = ""; 
+					$scope.new_user = {}; 
+				$location.url('/bids'); 
+				} 
+			}) 
+		} 
+	}]); 
+	myApp.controller('bidsController', ['$scope', '$route', '$filter', '$location', 'bidFactory', 'userFactory', function($scope, $route, $filter, $location, bidFactory, userFactory){ 
+		userFactory.verify(function(result){ 
+			if (result.login_status === false){ 
+				$location.url('/'); 
+			} 
+		})
+		$scope.new_bid = {};
+		bidFactory.index(function(data){ 
+			if (data.error){ 
+				$scope.error = data.error; 
+			} else if (data.ended){
+				$location.url('/result');
+			} else { 
+				$scope.product_list = data.product_list;
+				for (i=0; i<$scope.product_list.length; i++){
+					$scope.new_bid[$scope.product_list[i].name]= {amount: null};
+				} 
+			} 
+		}) 
+		$scope.logout = function(){ 
+			userFactory.delete(userFactory.current_user, function(result){ 
+				if (result.error){ 
+					$scope.error = result.error; 
+				} else { 
+					$location.url('/'); 
+				} 
+			});
+		}
+		$scope.create_bid = function(this_product){
+			if ($scope.new_bid[this_product].amount == null){
+				$scope.error = "Please enter a dollar amount before placing your bid."
+			} else {
+				if (parseFloat($scope.new_bid[this_product].amount) > 0){
+					$scope.new_bid[this_product].product = this_product;
+					$scope.new_bid[this_product].amount = $filter('number')($scope.new_bid[this_product].amount, 2);
+					bidFactory.create($scope.new_bid[this_product], function(data){ 
+						if (data.error){ 
+							$scope.error = data.error; 
+						} else if (data.ended) {
+							$location.url('/result');
+						} else { 
+							$route.reload();
+						} 
+					})
+				} else {
+					$scope.error="Bid must be a number greater than zero.";
+				}
+			}
+		}
+		$scope.refresh = function(){
+			$route.reload();
+		}
+		$scope.end_bid = function(){
+			var valid = true;
+			for (i=0; i<$scope.product_list.length; i++){
+				if ($scope.product_list[i].bids.length < 1){
+					alert("Cannot end bid until all products have received at least one bid.")
+					valid = false;
+					break;
+				}
+			}
+			if (valid === true){
+				$location.url('/result');
+			}
+		}   
+	}]); 
+	myApp.controller('resultsController', ['$scope', '$route', '$location', 'bidFactory', 'userFactory', function($scope, $route, $location, bidFactory, userFactory){ 
+		userFactory.verify(function(result){ 
+			if (result.login_status === false){ 
+				$location.url('/'); 
+			}
+		}) 
+		bidFactory.end_bid(function(data){
+			if (data.error){
+				$scope.error = data.error;
+			} else if (data.invalid){
+				$location.url('/bids');
+			} else {
+				$scope.results = data.results;
+				console.log(JSON.stringify($scope.results));
+			}
+		})
+		$scope.start_bid = function(){ 
+			bidFactory.delete(function(result){
+				$location.url('/bids');
+			})
+		} 
+		$scope.logout = function(){ 
+			userFactory.delete(userFactory.current_user, function(result){ 
+				if (result.error){ 
+					$scope.error = result.error; 
+				} else { 
+					$location.url('/'); 
+				} 
+			}); 
+		} 
+	}]); 
+	</script> 
+</head> 
+<body id="my_app" ng-app='myApp'> 
+	<div ng-view></div> 
+</body> 
+</html> 

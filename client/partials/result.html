@@ -1,0 +1,18 @@
+<div ng-controller= 'resultsController'> 
+	<h2>Bid Results</h2> 
+	<div class='error' ng-show='error' ng-bind='error'></div> 
+	<table>
+		<tr>
+			<th>Product</th>
+			<th>Winning Bidder</th>
+			<th>Winning Bid Amount</th>
+		</tr>
+		<tr ng-repeat='(key, value) in results'>
+			<td ng-bind='key'></td>
+			<td ng-bind='value.user'></td>
+			<td>$<span ng-bind='value.amount | number : 2'></span></td>
+		</tr>
+	</table>
+	<input type='submit' ng-click='start_bid()' value='Start Bid'> | 
+	<input type='submit' ng-click='logout()' value='Log out'>
+</div>

@@ -1,0 +1,26 @@
+<div ng-controller='bidsController'> 
+	<h2>Bids index</h2> 
+	<div class='error' ng-show='error' ng-bind='error'></div> 
+	<div class='product_info' ng-repeat='product in product_list'>
+		<p>Name: <span ng-bind='product.name'></span></p>
+		<p>Profession: <span ng-bind='product.profession'></span></p>
+		<input class='bid_entry' type='text' ng-model='new_bid[product.name].amount'>
+		<input type='submit' ng-click='create_bid(product.name)' value='Bid'>
+		<p>Bid History:</p>
+		<table>
+			<tr ng-repeat='bid in product.bids | filter: product.filter'>
+				<td ng-bind='bid.user'></td>
+				<td>$<span ng-bind='bid.amount | number: 2'></span></td>
+			</tr>
+		</table>
+	</div>
+	<div class='search_filters'>
+		<div class='product_info' ng-repeat='product in product_list'>
+			<p>Search: <input type='text' ng-model='product.filter'></p>
+		</div>
+	</div>
+	<hr>
+	<input type='submit' ng-click='refresh()' value='Refresh Bids'> | 
+	<input type='submit' ng-click='end_bid()' value='End Bid'> | 
+	<input type='submit' ng-click='logout()' value='Log out'>
+</div>

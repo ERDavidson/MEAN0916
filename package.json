@@ -1,0 +1,9 @@
+{ 
+ "_user": "MEAN_belt_exam", 
+ "version": "0.0.1", 
+ "dependencies": { 
+   "body-parser": "latest", 
+   "express": "latest", 
+   "mongoose": "latest" 
+  } 
+} 
